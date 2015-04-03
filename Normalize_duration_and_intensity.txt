@@ -1,0 +1,367 @@
+########################################################################################################
+### Normalize single-word soundfiles of variable duraiton
+#
+# Matthew B. Winn
+# March 2013
+#
+# This script lets you identify "middle" sections of user-selected sounds in the Objects list
+# and normalizes the pitch and/or duration of those sections while leaving the rest of the file unchanged
+# This is useful for altering the duration of vowels without adjusting the duration of surrounding consonants. 
+#
+# You have the option of normalizing the longest, shortest, or average duration of all the sound portions you select, 
+# 	or to a fixed value that you pre-determine. 
+#
+# You don't need to normalize for pitch, but if you do, it applies a uniform pitch contour for all words.
+# You select the sound after which the pitch contour will be modeled
+# NOTE about PITCH: different sounds have inherently different pitch contours, and you might end up with weird results
+# 	if you try something like applying a stop-sound pitch contour over a nasal sound. 
+# 	so, only do the pitch normalization if the syllables are homogenous. 
+#
+# You can also choose to temporally align all the onsets of your manipulatied portions
+# 	(for instance, if you cared about controlling the onset time of the medial vowel, 
+# 	but didn't care so much when the word began)
+#   
+#
+# This script takes OBJECTS in the Objects list, and yields new objects with a name that you can specify.
+# Remamber that Objects are not files on your computer; if you want to save these files, 
+# then you need to take further action after the script is completed.
+########################################################################################################
+ 
+
+form Enter settings for Duration & pitch normalization 
+	comment enter the floor and ceiling boundaries for pitch analysis
+	real minpitch 70
+	real maxpitch 300
+
+	comment  
+	comment Do you want to normalize the pitch contours?
+	boolean normalizePitchContours 0
+
+	comment  
+	comment How do you want to control duration?
+	    choice durationMethod: 1
+	       option Match to longest vowel duration in the set
+	       option Match to shortest vowel duration in the set
+	       option Match to average duration
+	       option set hard-coded value in ms (below)
+	       
+		real right_newDuration 200
+
+	comment  
+	comment do you want to temporally align the onset of your selected portion to normalize?
+	comment (leave unchecked to preserve original sound onset timing)
+	boolean alignOnsets 1
+
+	comment  
+	comment Enter the suffix to be applied to the normalized filenames
+	sentence suffix _norm
+	
+endform
+
+clearinfo
+
+pause select all sounds to be used for this operation
+numberOfSelectedSounds = numberOfSelected ("Sound")
+
+call numberTheSounds
+call nameAndSetLandmarks
+call getNewDuration
+call reAlign
+call manipulateDurations
+call normalizePitch
+call removePitch
+call renameObjects
+call endScript
+
+
+#
+#
+##
+###
+#####
+########
+#############
+#####################
+##################################
+####################################################### PROCEDURES
+
+procedure numberTheSounds
+  # number the selected sounds
+	for thisSelectedSound to numberOfSelectedSounds
+		sound'thisSelectedSound' = selected("Sound",thisSelectedSound)
+	endfor
+endproc
+
+procedure nameAndSetLandmarks
+  # call up the sounds by number, get their names, set landmarks for manipulation
+	# aso collect duration info for all targeted manipulated segments, create running sum of durations.
+	# also ask the user if the selected sound's pitch contour should be superimposed over all other sounds
+	
+	# initialize empty string variable
+	pitchToUse$ = ""
+	   for thisSound from 1 to numberOfSelectedSounds
+	      select sound'thisSound'
+		name$ = selected$("Sound")
+		
+		call selectManipulationLandmarks 'name$'
+		
+		if normalizePitchContours == 1
+			call askForPitchContour 'name$'
+		endif
+		
+		if thisSound = numberOfSelectedSounds
+		     if normalizePitchContours == 1
+		        call ensurePitchContourIsSelected
+		     else
+		        normalizePitchContours = 0
+		     endif
+		endif
+		
+		manipDur'name$' = endManip'name$' - startManip'name$'
+		
+		if thisSound ==1
+			call initializeFirstVariables
+		 endif
+			   
+		call calculateLandmarks
+	   endfor
+endproc
+
+procedure ensurePitchContourIsSelected
+     if pitchToUse$ = ""
+	beginPause ("Pitch Contour")
+	  comment ("You didn't select any sounds for pitch contour reference.")
+	  comment ("Is this okay?")
+	 clicked = endPause("OK - don't change pitch","Select reference sound",2)
+	 if clicked = 2
+	 	pause Select one of your original sounds from the list now
+	 	   pitchToUse$ = selected$("Sound")
+	 elsif clicked = 1
+	 	normalizePitchContours = 0
+	 endif
+     endif
+endproc
+
+procedure getNewDuration
+	if durationMethod == 1
+		newDuration = longestDuration
+	elsif durationMethod == 2
+		newDuration = shortestDuration
+	elsif durationMethod == 3
+		call getAverageDuration
+		newDuration = averageDuration
+	elsif durationMethod ==4
+		newDuration = right_newDuration/1000
+	endif
+endproc
+
+procedure getAverageDuration
+# calculate average duration of targeted manipulated portions
+	averageDuration = sumManipDur / numberOfSelectedSounds
+endproc
+
+procedure selectManipulationLandmarks .name$
+	select Sound '.name$'
+	Edit
+	editor Sound '.name$'
+		# jumps to last-selected onset landmark
+		if thisSound > 1
+		   Select... jumpOnset jumpOnset
+		endif
+	pause Click on the onset of the part that you want to normalize
+	Move cursor to nearest zero crossing
+	startManip'.name$'= Get cursor
+
+   		if thisSound > 1
+		   Select... jumpOffset jumpOffset
+		endif
+	pause Click on the offset of the part that you want to normalize
+	Move cursor to nearest zero crossing
+	endManip'.name$'= Get cursor
+	Close
+	endeditor
+endproc
+
+procedure askForPitchContour .name$
+	beginPause ("Pitch Contour")
+   	  comment ("use the pitch contour from this sound for all sounds?")
+   	  boolean ("useThisPitchContour", 0)
+   	clicked = endPause("Proceed", 1)
+   	
+	if useThisPitchContour = 1
+		pitchToUse$ = "'name$'"
+	endif
+endproc
+
+procedure getPitchContour
+	## extract pitch contour, to superimpose on all others 
+	To Manipulation... 0.01 minpitch maxpitch
+	Extract pitch tier
+	Rename... MasterPitchContour
+	
+	select Manipulation 'name$'_middle
+	Remove
+endproc
+
+procedure normalizePitch
+   if normalizePitchContours = 1
+	for thisSound from 1 to numberOfSelectedSounds
+	   select sound'thisSound'
+	    name$ = selected$("Sound")
+	    if alignOnsets = 1
+	    	.name$ = "'name$'" + "_aligned"
+	    endif
+	    select Sound '.name$'_DurNorm
+	    To Manipulation... 0.01 minpitch maxpitch
+	    select Manipulation '.name$'_DurNorm
+	    plus PitchTier MasterPitchContour
+	    Replace pitch tier
+	    select Manipulation '.name$'_DurNorm
+	    Get resynthesis (overlap-add)
+	    Rename... temp
+
+	    select Sound '.name$'_DurNorm
+	    plus Manipulation '.name$'_DurNorm
+	    Remove
+	    
+	    select Sound temp
+	    Rename... '.name$'_DurNorm
+
+	 endfor
+
+	endif
+   endif
+endproc
+
+procedure renameObjects
+	for thisSound from 1 to numberOfSelectedSounds
+	   select sound'thisSound'
+	    name$ = selected$("Sound")
+	    if alignOnsets = 1
+	    	.name$ = "'name$'" + "_aligned" + "_DurNorm"
+	    else
+	    	.name$ = "'name$'" + "_DurNorm"
+	    endif
+	    select Sound '.name$'
+	    Rename... 'name$''suffix$'
+	endfor
+endproc
+
+procedure reAlign
+if longestDelay > 0
+  for thisSound from 1 to numberOfSelectedSounds
+      select sound'thisSound'
+	name$ = selected$("Sound")
+	select Sound 'name$'
+
+	  if alignOnsets = 1
+		samplerate = Get sampling frequency
+		numChannels = Get number of channels
+		delay'name$' = longestDelay-startManip'name$'+0.001
+		Create Sound from formula... onsetBuffer numChannels 0 (delay'name$') samplerate 0
+		select Sound 'name$'
+		Copy... temp
+		select Sound onsetBuffer
+		plus Sound temp
+		Concatenate
+
+		select Sound temp
+		plus Sound onsetBuffer
+		Remove
+
+		select Sound chain
+		Rename... 'name$'_aligned
+	   endif
+   endfor
+ endif
+endproc
+
+procedure manipulateDurations
+  for thisSound from 1 to numberOfSelectedSounds
+      select sound'thisSound'
+ 	name$ = selected$("Sound")
+ 	if alignOnsets = 1
+		select Sound 'name$'_aligned
+ 		.name$ = selected$("Sound")
+	 	.startPoint = startManip'name$' + delay'name$'
+	 	.endPoint = endManip'name$' + delay'name$'
+ 	else
+ 		.name$ = "'name$'"
+ 		.startPoint = startManip'name$'
+ 		.endPoint = endManip'name$'
+ 	endif
+ 	
+ 	.tempdur = .endPoint - .startPoint
+ 	.tempratio = newDuration/.tempdur
+ 	
+	To Manipulation... 0.01 minpitch maxpitch
+	Extract duration tier
+		Add point... .startPoint .tempratio
+		Add point... .endPoint .tempratio
+	
+		Add point... (.startPoint-0.00001) 1
+		Add point... (.endPoint+0.00001) 1
+	
+	select Manipulation '.name$'
+	plus DurationTier '.name$'
+	Replace duration tier
+	select Manipulation '.name$'
+	Get resynthesis (overlap-add)
+	Rename... '.name$'_DurNorm
+	
+	if "'name$'" = "'pitchToUse$'"
+		select Sound '.name$'_DurNorm
+		To Manipulation... 0.01 minpitch maxpitch
+		Extract pitch tier
+		Rename... MasterPitchContour
+		select Manipulation '.name$'_DurNorm
+		Remove
+	endif
+	
+	select Manipulation '.name$'
+	plus DurationTier '.name$'
+		if alignOnsets = 1
+			plus Sound '.name$'
+		endif
+	Remove
+   endfor
+endproc
+
+procedure initializeFirstVariables
+   longestDuration = manipDur'name$'
+   shortestDuration = manipDur'name$'
+   longestDelay = startManip'name$'
+   sumManipDur = manipDur'name$'
+endproc
+			
+procedure calculateLandmarks
+	# calculations
+	if startManip'name$' > longestDelay
+	   longestDelay = startManip'name$'
+	endif
+
+	if startManip'name$' > longestDuration
+		longestDuration = manipDur'name$' 
+	endif
+
+	if startManip'name$' < shortestDuration
+		shortestDuration = manipDur'name$' 
+	endif
+
+	sumManipDur = sumManipDur + manipDur'name$'
+
+	# sets landmarks for the next object
+	jumpOnset = startManip'name$'
+	jumpOffset = endManip'name$'
+endproc
+
+procedure endScript
+   print All done!!! 'newline$'Remember, these files have not been saved yet. 
+endproc
+
+procedure removePitch
+ if normalizePitchContours == 1
+   select PitchTier MasterPitchContour
+   Remove
+ endif
+endproc
