@@ -1,0 +1,35 @@
+########################################################################
+## Get intensity of all selected Sound objects
+## First, open up all the sounds in the Praat Objects window
+#
+## Matthew B. Winn
+## November 2013
+#
+########################################################################
+
+clearinfo
+
+
+pause select all sounds to check intensities
+numberOfSelectedSounds = numberOfSelected ("Sound")
+
+for thisSelectedSound to numberOfSelectedSounds
+	sound'thisSelectedSound' = selected("Sound",thisSelectedSound)
+endfor
+
+for thisSound from 1 to numberOfSelectedSounds
+    select sound'thisSound'
+	name$ = selected$("Sound")
+
+    # display all intensities with one decimale place 
+    	int = Get intensity (dB)
+    	print 'name$''tab$''int:1''newline$'
+
+
+endfor
+
+#re-select the sounds
+select sound1
+for thisSound from 2 to numberOfSelectedSounds
+    plus sound'thisSound'
+endfor
