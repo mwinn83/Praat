@@ -1,0 +1,174 @@
+#########################################################################################################
+###  save-small-files.praat
+###
+### Saves little sound files from one big sound file.
+###  
+### Opens a soundfile as a LongSound object and reads in its associated TextGrid file.
+###
+### Extracts the portion of the sound file corresponding to all non-empty intervals on a specified tier,
+### with an optional buffer on each end.
+###
+### Saves each extracted portion to a .wav file named:
+### (<prefix>)<interval label>_<time_value>(<suffix>).wav
+###
+### NB: The time value (in seconds to two decimal places) of the beginning of the segment
+### in the original sound file is included in the file name. 
+###
+### This disambiguates between two tokens of the same word and also allows one to find the word 
+### in the longer sound file, if need be. 
+###
+### Creates and saves a (optionally labelled) TextGrid file for each word.
+###
+### Creates a text file named:
+### <orginal long sound file name>_list.txt
+### that contains a list of all the .wav files created. Useful for keeping track of what came from where.
+###
+###
+### Most of this code is originally from Pauline Welby  
+###
+### Modified by Matthew B. Winn
+### October 2013
+###
+#########################################################################################################
+
+#  form that asks user for the directories containing file to be worked on, 
+#  and for other information 
+
+form Input directory name with final slash
+    comment Enter parent directory where sound file  is kept:
+    sentence soundDir C:\Users\mwinn2\Desktop\KJ
+    comment Enter directory where TextGrid file is kept:
+    sentence textDir C:\Users\mwinn2\Desktop\KJ
+    comment Enter directory to which created sound files should be saved:
+    sentence outDir Segmented
+    comment Specify tier name:
+    sentence tierName words
+    comment Specify length of left and right buffer (in seconds):
+    real margin 0
+    comment Optional prefix:
+    sentence prefix  
+    comment Optional suffix (.wav will be added anyway):
+    sentence suffix 
+    comment Append time point?
+    boolean append_time 0
+
+    comment Append base filename?
+    boolean appendBasename 0
+
+    comment Enter basename of soundfile (without .wav extension)
+    sentence baseFile WriteFilenameHere
+endform
+
+system mkdir 'soundDir$'\'outDir$'
+
+# delete any existing record file
+filedelete 'soundDir$'\'outDir$'\'baseFile$'_list.txt
+
+#if appendBasename = 1
+#	baseFileName$ = "_'baseFile$'_"
+#else
+#	baseFileName$ = ""
+#endif
+
+if appendBasename = 1
+	prefix$ = "'prefix$'" + "'baseFile$'_"
+endif
+
+
+numberOfFiles = 1
+for ifile to numberOfFiles
+  # Read in the Sound and TextGrid files
+  # Read from file... E:\PRAAT\TUTORIALS\TEXTGRIDS\SET3\longfile.TextGrid
+  Read from file... 'textDir$'\'baseFile$'.TextGrid
+  Open long sound file... 'soundDir$'\'baseFile$'.wav
+
+  # Go through tiers and extract info
+
+  select TextGrid 'baseFile$'
+
+  nTiers = Get number of tiers
+    for i from 1 to 'nTiers'
+      tname$ = Get tier name... 'i'
+
+        if tname$ = "'tierName$'"
+
+        # Find non-empty intervals
+	
+        nInterv = Get number of intervals... 'i'
+        for j from 1 to 'nInterv'
+        lab$ = Get label of interval... 'i' 'j'
+          if lab$ != ""
+
+           # Get time values for start and end of the interval
+
+           begwd = Get starting point... 'i' 'j'			      
+           endwd = Get end point... 'i' 'j'
+
+           # Add buffers, if specified
+
+           begfile = 'begwd'-'margin'
+           endfile = 'endwd'+'margin' 
+
+           # Create and save small .wav file
+
+           select LongSound 'baseFile$'
+
+           Extract part... 'begfile' 'endfile' yes
+
+
+
+           if append_time = 1
+		exist = fileReadable ("'soundDir$'\'outDir$'\'prefix$''lab$''begwd:2''suffix$'.wav")
+		if exist = 0
+             		Save as WAV file... 'soundDir$'\'outDir$'\'prefix$''lab$''begwd:2''suffix$'.wav
+             	elsif exist = 1
+             		counter = 1
+             			extexist = fileReadable ("'soundDir$'\'outDir$'\'prefix$''lab$''begwd:2''suffix$''counter'.wav")
+             		while extexist = 1
+             			counter = counter + 1
+             				extexist = fileReadable ("'soundDir$'\'outDir$'\'prefix$''lab$''begwd:2''suffix$''counter'.wav")
+             		endwhile
+             		Save as WAV file... 'soundDir$'\'outDir$'\'prefix$''lab$''begwd:2''suffix$''counter'.wav
+             	endif
+
+           else
+           	exist = fileReadable ("'soundDir$'\'outDir$'\'prefix$''lab$''suffix$'.wav")
+           	if exist = 0
+           		Save as WAV file... 'soundDir$'\'outDir$'\'prefix$''lab$''suffix$'.wav
+		elsif exist = 1
+			counter = 1
+			extexist = fileReadable ("'soundDir$'\'outDir$'\'prefix$''lab$''suffix$''counter'.wav")
+			while extexist = 1
+             			counter = counter + 1
+					extexist = fileReadable ("'soundDir$'\'outDir$'\'prefix$''lab$''suffix$''counter'.wav")
+			endwhile
+			Save as WAV file... 'soundDir$'\'outDir$'\'prefix$''lab$''suffix$''counter'.wav
+		endif
+
+           endif
+
+          # Write label of each saved interval to a text file (keeps a record of origin of small soundfiles)
+
+          fileappend 'soundDir$'\'outDir$'\'baseFile$'_list.txt 'prefix$''lab$''suffix$'.wav 'newline$'
+
+          ## Object cleanup
+          select Sound 'baseFile$'
+          Remove
+
+          ## Re-select TextGrid
+          select TextGrid 'baseFile$'
+
+         endif
+	
+    endfor
+
+endfor
+
+# Complete object cleanup
+select TextGrid 'baseFile$'
+plus LongSound 'baseFile$'
+Remove
+
+#select TextGrid 'baseFile$'
+#Remove
+####### END OF SCRIPT #######
