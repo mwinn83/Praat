@@ -1,0 +1,173 @@
+#################################################################
+## Script to harmonize a sound file 
+## using specified musical semitone intervals
+#######  the harmonized one is scaled down in case it clips
+##
+## Matthew B. Winn
+## August 2014
+#################################################################
+
+
+
+form Choose harmonized notes
+	comment deviations are listed in semitones
+	real first_note_semitones 0
+	real second_note_semitones 4
+	real third_note_semitones 7
+
+	sentence name_suffix _harmonized
+	
+	comment create full series?
+	boolean full_series 1
+
+	comment  
+	optionmenu method 2
+		option multiply vocal tract
+		option only multiply pitch
+endform
+
+lowPitch = 75
+highPitch = 600
+
+call declare_variables
+
+
+pause Select the sound to harmonize
+name$ = selected$("Sound",1)
+
+
+
+if method = 1
+	call multiplyVocalTractHarmonize 'name$'
+elsif method = 2
+	call harmonizePitch 'name$'
+endif
+
+procedure harmonizePitch .name$
+	select Sound '.name$'
+	orig_intensity = Get intensity (dB)
+	To Manipulation... 0.01 lowPitch highPitch
+	# extract some pitch tiers for the three notes
+	  Extract pitch tier
+	    Rename... pitch_1
+	  select Manipulation '.name$'
+	  Extract pitch tier
+	    Rename... pitch_2
+	  select Manipulation '.name$'
+	  Extract pitch tier
+	    Rename... pitch_3
+	
+	for n from 1 to 3
+	   select PitchTier pitch_'n'
+	   Formula... self * note_ratio_'n'
+	   select Manipulation '.name$'
+	   plus PitchTier pitch_'n'
+	   Replace pitch tier
+	   select Manipulation '.name$'
+	   Get resynthesis (overlap-add)
+	   Rename... '.name$'_note_'n'
+	   select PitchTier pitch_'n'
+	   Remove
+	endfor
+	select Manipulation '.name$'
+	Remove
+
+	
+
+	select Sound '.name$'_note_1
+	Copy... '.name$''name_suffix$'
+	Formula... self [col] + Sound_'.name$'_note_2 [col] + Sound_'.name$'_note_3 [col]
+
+	select Sound '.name$''name_suffix$'
+	Scale intensity... orig_intensity
+	max = Get maximum... 0 0 Sinc70
+	while max > 0.98
+		select Sound '.name$''name_suffix$'
+		Multiply... 0.94
+		max = Get maximum... 0 0 Sinc70
+	endwhile
+
+	
+	if full_series = 1
+	   select Sound '.name$'_note_1
+	   plus Sound '.name$'_note_2
+	   plus Sound '.name$'_note_3
+	   plus Sound '.name$''name_suffix$'
+	   Concatenate
+	   Rename... '.name$'_series
+	endif
+
+	select Sound '.name$'_note_1
+	plus Sound '.name$'_note_2
+	plus Sound '.name$'_note_3
+	Remove
+endproc
+
+
+
+procedure multiplyVocalTractHarmonize .name$
+    select Sound '.name$'
+    orig_intensity = Get intensity (dB)
+    for n from 1 to 3
+	select Sound '.name$'
+	samplerate = Get sampling frequency
+	Copy... temp_'n'
+	Override sampling frequency... (samplerate*note_ratio_'n')
+	To Manipulation... 0.01 lowPitch highPitch
+	Extract duration tier
+	Add point... 0.0 (note_ratio_'n')
+	select Manipulation temp_'n'
+	plus DurationTier temp_'n'
+	Replace duration tier
+	select Manipulation temp_'n'
+	Get resynthesis (overlap-add)
+	Rename... temp_'n'_resyn
+	Resample... samplerate 50
+	Rename... '.name$'_note_'n'
+	select Manipulation temp_'n'
+	plus DurationTier temp_'n'
+	plus Sound temp_'n'_resyn
+	plus Sound temp_'n'
+	Remove
+    endfor
+	
+		
+	select Sound '.name$'_note_1
+	Copy... '.name$''name_suffix$'
+	Formula... self [col] + Sound_'.name$'_note_2 [col] + Sound_'.name$'_note_3 [col]
+	
+	select Sound '.name$''name_suffix$'
+	Scale intensity... orig_intensity
+	max = Get maximum... 0 0 Sinc70
+	while max > 0.98
+		select Sound '.name$''name_suffix$'
+		Multiply... 0.94
+		max = Get maximum... 0 0 Sinc70
+	endwhile
+
+	if full_series = 1
+	   select Sound '.name$'_note_1
+	   plus Sound '.name$'_note_2
+	   plus Sound '.name$'_note_3
+	   plus Sound '.name$''name_suffix$'
+	   Concatenate
+	   Rename... '.name$'_series
+	endif
+	
+	select Sound '.name$'_note_1
+	plus Sound '.name$'_note_2
+	plus Sound '.name$'_note_3
+	Remove
+
+endproc
+
+
+
+procedure declare_variables
+   semitone_ratio = 2^(1/12)
+   
+   note_ratio_1 = semitone_ratio ^ first_note_semitones
+   note_ratio_2 = semitone_ratio ^ second_note_semitones
+   note_ratio_3 = semitone_ratio ^ third_note_semitones
+
+endproc
