@@ -1,0 +1,263 @@
+##  make interleaved sounds from Folder of sounds
+
+form enter Settings for Interleaving
+
+comment Set corner frequencies
+	real left_lowCornerFreq 188
+	real right_highCornerFreq 7938
+
+comment Set number of channels
+	natural numberOfChannels 22
+
+comment enter the original parent directory full of folders of sounds to convert
+   sentence origDir Type_directory_here
+
+   
+       comment Odd channels will go to which ear?
+       optionmenu ear: 1
+          option Left
+       option Right
+
+endform
+
+call setVariables
+
+call inverseGreenwood lowCornerFreq highCornerFreq numberOfChannels
+	
+clearinfo
+	
+call printCornerFreqs
+
+## create a new folder for the interleaved sounds
+
+system mkdir 'origDir$'\Interleaved	
+
+	Create Strings as file list... list 'origDir$'\*.wav
+	numberOfFiles = Get number of strings
+
+	for thisFile to numberOfFiles
+	   select Strings list
+	      fileName$ = Get string... thisFile
+	      name$ = fileName$ - ".wav"
+		
+		# Reads in all sound (wav) files
+		Read from file... 'origDir$'\'name$'.wav
+
+		select Sound 'name$'
+		intensity = Get intensity (dB)
+
+ 	call makeInterleavedSound 'name$'
+	
+	 	select Sound 'prefix$''name$''suffix$'
+	 	Scale intensity... 'intensity'
+			extremum = Get absolute extremum... 0 0 None
+			if extremum > 0.98
+				print 'name$' clipped... was attenuated'newline$'
+			endif
+			while extremum > 0.98
+			Multiply... 0.97
+			extremum = Get absolute extremum... 0 0 None
+			endwhile
+	
+		call saveWavFile "'prefix$''name$''suffix$'" 'origDir$'\Interleaved
+	Remove
+		# file cleanup
+			select Sound 'name$'
+			plus Sound Mixed_Odd
+			plus Sound Mixed_Even
+			Remove
+			
+		# remove individual channels
+			select Sound channel_1
+			for n from 2 to numberOfChannels
+			plus Sound channel_'n'
+			endfor
+		Remove
+	endfor
+select Strings list
+Remove
+
+
+
+#
+##
+###
+#####
+########
+#############
+#####################
+##################################
+#######################################################
+## PROCEDURES
+##
+
+procedure makeInterleavedSound .name$
+	for thisChannel from 1 to numberOfChannels
+		low = loFreq'thisChannel'
+		high = hiFreq'thisChannel'
+		width = (high-low)/'divider'
+	
+		select Sound '.name$'
+		Filter (pass Hann band)... low high width
+		select Sound '.name$'_band
+		Rename... channel_'thisChannel'
+	endfor
+	
+	
+	select Sound channel_1
+	Copy... Mixed_Odd
+	
+	select Sound channel_2
+	Copy... Mixed_Even
+	
+	for thisChannel from 3 to numberOfChannels
+		call evenOrOdd thisChannel
+		if odd = 1
+			select Sound Mixed_Odd
+			Formula... self [col] + Sound_channel_'thisChannel' [col]
+		else
+			select Sound Mixed_Even
+			Formula... self [col] + Sound_channel_'thisChannel' [col]
+		endif
+	endfor
+
+	if oddChannelsOnTheLeft = 1
+		select Sound Mixed_Odd
+		plus Sound Mixed_Even
+	else
+		select Sound Mixed_Odd
+		Copy... Odd2
+	
+		select Sound Mixed_Even
+		plus Sound Odd2
+	endif
+	
+	Combine to stereo
+	Rename... 'prefix$''.name$''suffix$'
+	if oddChannelsOnTheLeft != 1
+		select Sound Odd2
+		Remove
+	endif
+endproc
+
+
+procedure evenOrOdd .number
+	.even = '.number' mod 2
+	if '.even' <>0
+		## number is odd
+		odd = 1
+		even = 0
+	else
+		odd = 0
+		even = 1
+	endif
+endproc
+
+
+procedure blend2sounds .sound1$ .sound2$ .newname$
+	select Sound '.sound2$'
+	Copy... '.newname$'
+	Formula... self [col] + Sound_'.sound1$' [col]
+endproc
+
+
+procedure printCornerFreqs
+# print header
+	print Channel'tab$'LoPos'tab$'HiPos'tab$'LoFreq'tab$'HiFreq'newline$'
+	
+for thisChannel from 1 to numberOfChannels
+
+	loPos = chan'thisChannel'_lowPos
+	hiPos = chan'thisChannel'_highPos
+	
+	loFreq = loFreq'thisChannel'
+	hiFreq = hiFreq'thisChannel'
+
+	print 'thisChannel''tab$''loPos:2''tab$''hiPos:2''tab$''loFreq:0''tab$''hiFreq:0''newline$'
+endfor
+endproc
+
+
+procedure inverseGreenwood lowCornerFreq highCornerFreq numberOfChannels
+	## Inverse Greenwood function
+		lowCornerPos = log10(('lowCornerFreq'/'aA')+'k')*'length'/'a'
+		highCornerPos = log10(('highCornerFreq'/'aA')+'k')*'length'/'a'
+	
+
+	## set variable to enable calculation of final channel low frequency
+		extendedNumberOfChannels = numberOfChannels +1
+	
+    ### Set low corner frequencies for each channel (the first was already set)
+    	## create the first low corner frequency
+	chan1_lowPos = lowCornerPos
+	for thisChannel from 2 to extendedNumberOfChannels
+		prevChannel = 'thisChannel' - 1
+		chan'thisChannel'_lowPos = ((highCornerPos - lowCornerPos)/numberOfChannels)+chan'prevChannel'_lowPos
+	endfor
+	
+     ### Set high corner frequencies for each channel
+	for thisChannel from 1 to numberOfChannels
+		nextChannel = thisChannel +1
+		chan'thisChannel'_highPos = chan'nextChannel'_lowPos
+	endfor
+	
+	for thisChannel from 1 to numberOfChannels
+		## sets the variable for positions that you can call later
+		loPos'thisChannel' = chan'thisChannel'_lowPos
+		hiPos'thisChannel' = chan'thisChannel'_highPos
+		
+		loPos = loPos'thisChannel'
+		hiPos = hiPos'thisChannel'
+	
+		## sets the variable for frequencies that you can call later
+		loFreq'thisChannel' = 'aA'*((10^('a'*'loPos'/'length'))-'k')
+		hiFreq'thisChannel' = 'aA'*((10^('a'*'hiPos'/'length'))-'k')
+	endfor
+endproc
+
+procedure saveInfoWindow outputDirectory$ outputFileName$
+	filedelete 'outputDirectory$'\'outputFileName$'.txt
+	fappendinfo 'outputDirectory$'\'outputFileName$'.txt
+endproc
+
+procedure makeFileList .soundDir$ listName$
+	Create Strings as file list... 'listName$' '.soundDir$'
+	Save as raw text file... 'parentDir$'\'mainDir$'\'listName$'.txt
+	select Strings 'listName$'
+	Remove
+endproc	
+
+
+procedure saveWavFile .name$ .directory$
+	select Sound '.name$'
+	nowarn Save as WAV file... '.directory$'\'.name$'.wav
+endproc	
+
+
+
+procedure setVariables
+	prefix$ = ""
+	suffix$ = ""
+
+	#ear = 1
+	# odd channels go to the left ear
+
+
+	# cochlea parameters
+		aA = 165.4
+		a = 2.1
+		length = 35
+		k = 0.88
+
+	divider = 3 ; 1/3 octave
+
+	lowCornerFreq = left_lowCornerFreq
+	highCornerFreq = right_highCornerFreq
+
+	## sets the variable to split the channels to the appropriate ear
+		if ear = 1
+			oddChannelsOnTheLeft = 1
+		else
+			oddChannelsOnTheLeft = 0
+		endif
+endproc
