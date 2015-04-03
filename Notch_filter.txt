@@ -1,0 +1,23 @@
+# procedure to add notch filter
+
+name$ = selected$("Sound",1)
+
+call notchFilter "'name$'" 500 2500 4000 -4 'name$'_notch
+
+procedure notchFilter .name$ .lowFiltRange .midFiltRange .highFiltRange .midFreqMult .newname$
+	select Sound '.name$'
+	.samplerate = Get sampling frequency
+	Filter (formula)... if x > .lowFiltRange and x<=.midFiltRange 
+	... then self * 10^ (((((x-.lowFiltRange)/(.midFiltRange-.lowFiltRange)) * .midFreqMult)/ 20)) else self fi
+	
+	Filter (formula)... if x > .midFiltRange and x<=.highFiltRange 
+	... then self * 10^(((('.highFiltRange' - x)/('.highFiltRange' - '.midFiltRange'))*'.midFreqMult')/20) else self fi
+
+	Rename... '.newname$'
+	
+	select Sound '.name$'_filt
+	Remove
+
+	select Sound '.newname$'
+
+endproc
