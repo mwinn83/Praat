@@ -1,0 +1,25 @@
+# This is a function that demonstrates how to use an octave rolloff filter in Praat
+# This is useful for people who might be thrown off by the linear frequency-domain filtering in Praat
+#
+# To play: fiddle around with the 'cf' and 'rolloff.per.octave' parameters
+
+
+cf = 4000
+rolloff.per.octave = 5
+
+
+# Here's an example of a sound filtered many times,
+# to show different filter widths
+  do ("Create Sound from formula...", "Noise", 1, 0, 0.5, 44100, "randomGauss(0,0.1)")
+
+   for n from 3 to 8
+	    filter_width = n*4
+	    call filterOctaveRolloff Noise 'cf' 'filter_width' _'filter_width'
+   endfor
+
+# Here's the procedure
+procedure filterOctaveRolloff .name$ .cf .rolloff.per.octave .suffix$
+   select Sound '.name$'
+   Filter (formula)...  if x > 1 then self*10^(-(abs((log10(x/.cf)/log10(2)))*.rolloff.per.octave)/20) else self fi
+   Rename... '.name$''.suffix$'
+endproc
