@@ -1,0 +1,34 @@
+## This script is a MODIFIED version of: (MBW, Feb 7, 2013)
+
+# This Praat script takes the average LTAS of a set of audio files
+# (the set of audio files is listed in file `names.txt`) and shapes
+# a 5 sec portion of white noise according to this average LTAS. 
+#
+# 2009 Theo Veenker, Lisette van Delft, Hugo Quene
+# 
+# See Quené & Van Delft (2010). Speech Commun, 52, 911-918. 
+# doi:10.1016/j.specom.2010.03.005
+
+pause select the sound from which you want to make the filter
+name$ = selected$("Sound")
+select Sound 'name$'
+int = Get intensity (dB)
+    To Ltas... 100
+
+# Create 5 seconds of white noise and convert to a spectrum
+Create Sound from formula... noise Mono 0 5 44100  randomGauss(0,0.1)
+To Spectrum... no
+select Sound noise
+Remove
+
+# Apply LTAS envelope to white noise spectrum and convert back to sound
+select Spectrum noise
+Formula... self * 10 ^ (Ltas_'name$'(x)/20)
+To Sound
+Scale intensity... 'int'
+Rename... 'name$'_shaped_noise
+
+# Cleanup
+select Ltas 'name$'
+plus Spectrum noise
+Remove
