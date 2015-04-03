@@ -1,0 +1,91 @@
+# # ## ### ##### ########  #############  ##################### 
+# Praat Script
+# Set vocoder corner frequencies
+# According to Greenwood function
+# Donald D. Greenwood (1990). 
+# "A cochlear frequency-position function for several species – 29 years later". 
+# Journal of the Acoustical Society of America 87 (6): 2592–2605. 
+#  doi:10.1121/1.399052    PMID 2373794
+#
+# Matthew Winn
+# August 2014
+##################################
+##################### 
+############# 
+######## 
+#####
+###
+##
+#
+#
+form Enter corner frequencies and number of channels 
+   real lowCornerFreq 100
+   real highCornerFreq 8000
+   real numberOfChannels 20
+endform
+
+
+#lowCornerFreq = 100
+#highCornerFreq = 8000
+#numberOfChannels = 20
+
+
+# Standard human cochlea parameters
+	aA = 165.4
+	a = 2.1
+	length = 35
+	k = 0.88
+
+
+lowCornerPos = log10(('lowCornerFreq'/'aA')+'k')*'length'/'a'
+highCornerPos = log10(('highCornerFreq'/'aA')+'k')*'length'/'a'
+
+## Greenwood function for setting corner frequencies
+#lowPos'thisChannel'=log10(('lowCorner'/'aA')+'k')*'length'/'a'
+chan1_lowPos = lowCornerPos
+
+extendedNumberOfChannels = numberOfChannels +1
+
+
+clearinfo
+
+# print header
+print Channel'tab$'LoPos'tab$'HiPos'tab$'LoFreq'tab$'HiFreq'newline$'
+
+for thisChannel from 2 to extendedNumberOfChannels
+	prevChannel = 'thisChannel' - 1
+	chan'thisChannel'_lowPos = ((highCornerPos - lowCornerPos)/numberOfChannels)+chan'prevChannel'_lowPos
+endfor
+
+for thisChannel from 1 to numberOfChannels
+	nextChannel = thisChannel +1
+	chan'thisChannel'_highPos = chan'nextChannel'_lowPos
+endfor
+
+for thisChannel from 1 to numberOfChannels
+	## sets the variable for positions that you can call later
+	loPos'thisChannel' = chan'thisChannel'_lowPos
+	hiPos'thisChannel' = chan'thisChannel'_highPos
+	
+	loPos = loPos'thisChannel'
+	hiPos = hiPos'thisChannel'
+
+	## sets the variable for frequencies that you can call later
+	loFreq'thisChannel' = 'aA'*((10^('a'*'loPos'/'length'))-'k')
+	hiFreq'thisChannel' = 'aA'*((10^('a'*'hiPos'/'length'))-'k')
+endfor
+
+
+
+
+for thisChannel from 1 to numberOfChannels
+
+	loPos = chan'thisChannel'_lowPos
+	hiPos = chan'thisChannel'_highPos
+	
+	loFreq = loFreq'thisChannel'
+	hiFreq = hiFreq'thisChannel'
+
+	print 'thisChannel''tab$''loPos:2''tab$''hiPos:2''tab$''loFreq:0''tab$''hiFreq:0''newline$'
+endfor
+
