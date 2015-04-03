@@ -1,0 +1,71 @@
+########################################################################
+## Scale intensity of all sounds in a Directory
+#
+## Matthew B. Winn
+## November 2013
+#
+## NOTE: It helps to have the Praat info window open as you run this script,
+###### as it will update info for you as it proceeds. 
+#
+## Once the script is done and you choose to save the files, 
+#### Look in the original sound directory - 
+#### there you will find a new sub-folder of normalized sounds. 
+#### The folder is named with the number of your specified intensity
+########################################################################
+
+form Input Enter specifications for Intensity scaling
+    comment Enter desired intensity (dB):
+    real intensity 72
+    comment Enter directory where the ORIGINAL sound files will be retrieved:
+    sentence soundDir Type Your Directory Here
+    comment Enter filename to which the info should be written
+    sentence outFile intensity_info.txt
+endform
+
+# first deletes any existing output file
+   filedelete 'soundDir$'/'outFile$'
+
+# clear the info window
+   clearinfo
+
+# make a new sub-folder
+   system mkdir "'soundDir$'/Intensity'intensity'"
+
+print Filename 'tab$' Old_Int 'tab$' New_Int 'tab$' Changed by 'tab$''newline$'
+
+
+# Reads in a list of files
+   Create Strings as file list... list 'soundDir$'/*.wav
+   numberOfFiles = Get number of strings
+
+   for thisFile to numberOfFiles
+      select Strings list
+      fileName$ = Get string... thisFile
+      name$ = fileName$ - ".wav"
+	
+	Read from file... 'soundDir$'/'name$'.wav
+
+	old_Int = Get intensity (dB)
+	print 'name$''tab$''old_Int:2''tab$'
+
+	Scale intensity... 'intensity'
+	int_diff = 'intensity' - 'old_Int'
+	extr = Get absolute extremum: 0, 0, "None"
+	if extr > 0.994
+	   clip$ = "CLIPPED"
+	else
+	   clip$ = ""
+	endif
+	print 'intensity:2''tab$''int_diff:2''tab$''clip$''newline$'
+
+	######  write the object to wav file here
+	nowarn Save as WAV file... 'soundDir$'/Intensity'intensity'/'name$'.wav
+	Remove
+   endfor
+
+# cleanup
+   select Strings list
+   Remove
+
+# save the info window
+   appendFile ("'soundDir$'/Intensity'intensity'/'outFile$'", info$ ())
