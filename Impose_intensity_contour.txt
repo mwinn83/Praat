@@ -1,0 +1,64 @@
+# Impose intensity contour of one sound onto all other selected sounds. 
+
+minpitch = 70
+maxpitch = 300
+
+pause select reference sound
+reference$ = selected$("Sound")
+
+pause select all sounds to match
+numberOfSelectedSounds = numberOfSelected ("Sound")
+
+for thisSelectedSound to numberOfSelectedSounds
+	sound'thisSelectedSound' = selected("Sound",thisSelectedSound)
+endfor
+
+for thisSound from 1 to numberOfSelectedSounds
+    select sound'thisSound'
+	name$ = selected$("Sound")
+	
+	call matchIntensityContour "'name$'" "'reference$'" _int
+endfor
+
+
+
+procedure matchIntensityContour .soundToAlter$ .referenceSound$ .suffix$
+	select Sound '.soundToAlter$'
+	.originalIntensity = Get intensity (dB)
+	
+	To Intensity... minpitch 0 yes
+	Down to IntensityTier
+	select Intensity '.soundToAlter$'
+	mean = Get mean... 0 0 dB
+	select IntensityTier '.soundToAlter$'
+	Copy... flipped
+	Formula... -(self-mean)
+	
+	select Sound '.soundToAlter$'
+	plus IntensityTier flipped
+	Multiply... no
+	Rename... '.soundToAlter$'_flattened
+	
+	select Sound '.referenceSound$'
+	To Intensity... minpitch 0 yes
+	Down to IntensityTier
+
+	select IntensityTier '.referenceSound$'
+	plus Sound '.soundToAlter$'_flattened
+	Multiply... no
+	Rename... temp
+	Scale intensity... '.originalIntensity'
+
+	
+	select Intensity '.soundToAlter$'
+	plus IntensityTier '.soundToAlter$'
+	plus IntensityTier flipped
+	plus Sound '.soundToAlter$'_flattened
+	plus Intensity '.referenceSound$'
+	plus IntensityTier '.referenceSound$'
+	Remove
+
+	select Sound temp
+	Rename... '.soundToAlter$''.suffix$'
+
+endproc
