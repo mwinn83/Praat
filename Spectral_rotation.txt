@@ -1,0 +1,38 @@
+#creates two files from the selected file: one that has the spectrum zero above the maximum frequency;
+# and a second that has the non-zero part of the spectrum rotated about its midpoint.
+
+form Spectral Rotation
+   positive Maximum_frequency 5000
+endform
+sound$ = selected$("Sound",1)
+durn = Get duration
+sf = Get sample rate
+halfsf = sf/2
+if maximum_frequency > halfsf
+	exit Maximum frequency must be less than  'halfsf' Hz
+endif
+To Spectrum
+
+# zero out spectrum above maximum frequency
+Copy... 'sound$'_'maximum_frequency'
+bw = Get bin width
+topbin = maximum_frequency/ bw
+Formula... if col > 'topbin' then 0 else self endif
+To Sound
+Extract part... 0 durn Rectangular 1.0 no
+select Spectrum 'sound$'_'maximum_frequency'
+Copy... 'sound$'_'maximum_frequency'x
+Formula... if col > 'topbin' then 0 else Spectrum_'sound$'_'maximum_frequency'[row,'topbin'-col] endif
+To Sound
+Reverse
+Extract part... 0 durn Rectangular 1.0 no
+select Sound 'sound$'_'maximum_frequency'
+plus Sound 'sound$'_'maximum_frequency'x
+plus Spectrum 'sound$'_'maximum_frequency'
+plus Spectrum 'sound$'_'maximum_frequency'x
+plus Spectrum 'sound$'
+Remove
+select Sound 'sound$'_'maximum_frequency'_part
+Rename... 'sound$'_'maximum_frequency'
+select Sound 'sound$'_'maximum_frequency'x_part
+Rename... 'sound$'_'maximum_frequency'x
