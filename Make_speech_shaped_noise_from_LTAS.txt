@@ -1,0 +1,23 @@
+# procedure to make LTAS noise from a single sound using the Ltas object in Praat
+# (faster than the Spectrum method)
+
+procedure ssn_from_ltass .name$ .ltas_binwidth .suffix$
+
+	select Sound '.name$'
+	.dur = Get total duration
+	.int = Get intensity (dB)
+	.samplerate = Get sampling frequency
+	To Ltas: .ltas_binwidth
+
+	Create Sound from formula: "noise", 1, 0, .dur, .samplerate, "randomGauss(0,0.1)"
+	To Spectrum... no
+	Formula... self * 10 ^ (Ltas_'.name$'(x)/20)
+	To Sound
+	Scale intensity... .int
+	Rename... '.name$''.suffix$'
+
+	select Sound noise
+	plus Spectrum noise
+	plus Ltas '.name$'
+	Remove
+endproc
