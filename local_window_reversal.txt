@@ -1,0 +1,149 @@
+########################################################################
+#
+# Local time reversals
+# as in Saberi (1999)
+#
+# Matthew B Winn
+# August 2014
+########################################################################
+
+form Enter settings for local time reversals
+   comment enter window size in milliseconds
+   real windowsize 30
+   
+   comment move boundaries to nearest zero crossings?
+   boolean moveToZero = 1
+
+endform
+
+
+#windowsize = 30
+#moveToZero = 1
+
+# convert some numbers for clean naming
+windowsizeSEC = windowsize / 1000
+
+
+clearinfo
+#print 'method'
+
+pause select all sounds to be used for this operation
+numberOfSelectedSounds = numberOfSelected ("Sound")
+
+# number the sounds
+   for thisSelectedSound to numberOfSelectedSounds
+	sound'thisSelectedSound' = selected("Sound",thisSelectedSound)
+   endfor
+
+
+# For each sound... 
+    for thisSound from 1 to numberOfSelectedSounds
+	    select sound'thisSound'
+	    name$ = selected$("Sound")
+	    
+	Copy... temp
+	startTime = Get start time
+	endTime = Get end time
+
+	start = 0
+	select Sound temp
+	Edit
+	
+	  editor Sound temp
+		
+	     call blank_editor_settings
+	     #pause editor blanked
+
+		
+		Select... start (start+windowsizeSEC)
+		while start < endTime
+		   call localReverse
+		endwhile
+		
+	     call restore_editor_settings
+	     #pause editor restored
+	
+	     Close
+	  endeditor
+	Rename... 'name$'_reversed_'windowsize'
+   endfor
+
+########################################################################
+
+procedure localReverse
+	Select... start (start+windowsizeSEC)
+	if moveToZero == 1
+		Move start of selection to nearest zero crossing
+		Move end of selection to nearest zero crossing
+	endif
+	Reverse selection
+	start = start+windowsizeSEC
+endproc
+
+
+
+
+procedure blank_editor_settings
+   info$ = Editor info
+
+   showFormants$ = extractLine$(info$, "Formant show: ")
+   if showFormants$ <> "no"
+      Show formants
+   endif
+
+
+   showPitch$ = extractLine$(info$, "Pitch show: ")
+   if showPitch$ <> "no"
+      Show pitch
+   endif
+
+
+   showIntensity$ = extractLine$(info$, "Intensity show: ")
+   if showIntensity$ <> "no"
+      Show intensity
+   endif
+
+
+   showPulses$ = extractLine$(info$, "Pulses show: ")
+   if showPulses$ <> "no"
+      Show pulses
+   endif
+
+
+   showSpectrogram$ = extractLine$(info$, "Spectrogram show: ")
+   if showSpectrogram$ <> "no"
+      Show spectrogram
+   endif
+
+endproc
+
+procedure restore_editor_settings
+   showFormants$ = extractLine$(info$, "Formant show: ")
+   if showFormants$ <> "no"
+      Show formants
+   endif
+
+
+   showPitch$ = extractLine$(info$, "Pitch show: ")
+   if showPitch$ <> "no"
+      Show pitch
+   endif
+
+
+   showIntensity$ = extractLine$(info$, "Intensity show: ")
+   if showIntensity$ <> "no"
+      Show intensity
+   endif
+
+
+   showPulses$ = extractLine$(info$, "Pulses show: ")
+   if showPulses$ <> "no"
+      Show pulses
+   endif
+
+
+   showSpectrogram$ = extractLine$(info$, "Spectrogram show: ")
+   if showSpectrogram$ <> "no"
+      Show spectrogram
+   endif
+endproc
