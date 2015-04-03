@@ -1,0 +1,107 @@
+# Pad with silence to normalize signal duration
+
+form Pad silence
+
+comment what is the overall desired duration (seconds)?
+comment (leave at 0 to simply normalize to the longest sound)
+real output_duration 5
+
+comment Where do you want the padded silence to be added?
+choice method: 1
+       button before the sound
+       button after the sound
+       
+comment type in a suffix to uniquely identify the normalized sound
+   sentence suffix _norm
+       
+   boolean delete_originals 0
+endform
+
+clearinfo
+#print 'method'
+
+pause select all sounds to be used for this operation
+numberOfSelectedSounds = numberOfSelected ("Sound")
+
+# number the sounds
+   for thisSelectedSound to numberOfSelectedSounds
+	sound'thisSelectedSound' = selected("Sound",thisSelectedSound)
+   endfor
+
+# initialize longestDuration
+	longestDuration = 0
+
+
+# get duration of all sounds
+	for thisSound from 1 to numberOfSelectedSounds
+    	select sound'thisSound'
+		dur = Get total duration
+		if dur > longestDuration
+	  	longestDuration = dur
+		  endif
+	endfor
+
+# compare longestDuration to output_duration
+if output_duration != 0
+    if longestDuration < output_duration
+        longestDuration = output_duration
+    endif
+
+    if longestDuration > output_duration
+      beginPause: "At least one of your sounds is longer than your desired duration."
+        comment: "At least one of your sounds is longer than your desired duration."
+        comment: "Increased desired duration or set to 0 to match longest selected sound."
+        clicked = endPause: "Match to longest sound", "Stop and start over", 1
+    endif
+endif
+
+
+# get the duration of each sound; if it's not the longest one, pad silence to match duraton to the longest one
+	for thisSound from 1 to numberOfSelectedSounds
+	    select sound'thisSound'
+		samplerate = Get sampling frequency
+		numChannels = Get number of channels
+		name$ = selected$("Sound")
+		dur = Get total duration
+		if dur < longestDuration
+			bufferDuration = longestDuration - dur
+			Create Sound from formula... buffer numChannels 0 bufferDuration samplerate 0
+			call appendBuffer 'name$' 'name$''suffix$' delete_originals
+		else
+		   select Sound 'name$'
+		   Copy... 'name$''suffix$'
+		endif
+	endfor
+
+
+
+procedure appendBuffer .name$ .newname$ .delete_original
+   if method = 2
+	select Sound '.name$'
+	plus Sound buffer
+	Concatenate
+	select Sound buffer
+	if .delete_original = 1
+	   plus Sound '.name$'
+	endif
+	Remove
+	select Sound chain
+	Rename... '.newname$'
+   endif
+   
+   if method = 1
+   	select Sound '.name$'
+   	Copy... temp
+   	select Sound buffer
+   	plus Sound temp
+   	Concatenate
+   	select Sound buffer
+	plus Sound temp
+	if .delete_original = 1
+	   plus Sound '.name$'
+	endif
+	Remove
+   	select Sound chain
+	Rename... '.newname$'
+   endif
+endproc
