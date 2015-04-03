@@ -1,0 +1,127 @@
+form Input Enter specifications for speech shaped noise
+       
+  comment Choose the duration of your noise 
+    optionmenu type: 1
+       option Match original reference Sound Duration
+       option Original reference duration plus buffer
+       option fixed duration
+       
+    comment If using a buffer, enter buffer duration here (in ms):
+    	real buffer 250
+    	
+    comment If using a fixed duration, enter noise duration here (in ms):
+    	real userNoiseDur 1500
+    	
+    comment enter the intensity of your noise (leave at 0 to match original reference intensity):
+    	real noiseInt 0
+
+endform
+
+# use original sound duration?
+
+# use original sound duration with buffer?
+#buffer length?
+
+# use a specified duration?
+
+# divides buffer by  1000 to convert to seconds, then multiplies by two, because it is applied to the onset and offset
+buffer = buffer/500
+
+userNoiseDur = userNoiseDur/1000
+
+
+pause select the sound you want to reference for the noise
+
+name$ = selected$ ("Sound", 1)
+select Sound 'name$'
+durn = Get total duration
+origInt = Get intensity (dB)
+
+if noiseInt = 0
+	noiseInt = origInt
+endif
+
+
+if type = 1
+	noiseduration = durn
+elsif type = 2
+	noiseduration = durn + buffer
+elsif type = 3
+	noiseduration = userNoiseDur
+endif	
+	
+
+## the following lines are from Paul Boersma's script at http://uk.groups.yahoo.com/group/praat-users/message/59 	
+To Spectrum... yes
+
+select Spectrum 'name$'
+nbin = Get number of bins
+Create Sound... Phases 0 1 nbin randomUniform (0, 2 * pi)
+
+#You then create a new Spectrum object with the same power
+#as the original, but with a random phase:
+
+select Spectrum 'name$'
+Copy... Ranphas
+Formula... if row = 1
+... then Spectrum_'name$' [1, col] * cos (Sound_Phases [1, col])
+... + Spectrum_'name$' [2, col] * sin (Sound_Phases [1, col])
+... else Spectrum_'name$' [1, col] * sin (Sound_Phases [1, col])
+... + Spectrum_'name$' [2, col] * cos (Sound_Phases [1, col])
+... fi
+
+
+### okay, the rest is new.
+
+To Sound
+Rename... 'name$'-shaped_noise
+ssnDuration = Get total duration
+
+## at this point the noise is exactly the same duration as the original sound file. If the user-specified noiseduration is longer than durn, , the noise needs to be lengthened. 
+
+if noiseduration > ssnDuration
+		select Sound 'name$'-shaped_noise
+		start = Get start time
+		end = Get end time
+		Edit
+			editor Sound 'name$'-shaped_noise
+			Select... start end
+			Move start of selection to nearest zero crossing
+			Move end of selection to nearest zero crossing
+			Extract selected sound (windowed)... Extracted rectangular 1 no
+			Close
+			endeditor
+		select Sound 'name$'-shaped_noise
+		Remove
+		
+	while noiseduration > ssnDuration
+		select Sound Extracted
+		Copy... Extracted2
+		select Sound Extracted
+		plus Sound Extracted2
+		Concatenate
+		select Sound Extracted
+		plus Sound Extracted2
+		Remove
+		
+		select Sound chain
+		Rename... Extracted
+		ssnDuration = Get total duration
+	endwhile
+	select Sound Extracted
+	Rename... 'name$'-shaped_noise
+endif	
+	
+select Sound 'name$'-shaped_noise
+Extract part... 0 noiseduration Rectangular 1.0 no
+Scale intensity... noiseInt
+
+
+#cleanup
+select Sound Phases
+plus Spectrum Ranphas
+plus Spectrum 'name$'
+Remove
+
+
+
