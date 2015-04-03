@@ -1,0 +1,160 @@
+# make logarithmic spectral ripples
+form Enter parameters for spectral ripple
+   real left_duration 0.5
+   real right_duration 0.5
+   real left_ripples_per_octave 2
+   real right_ripples_per_octave 2
+   real left_phase 0
+   real right_phase 180
+   real left_mod_depth 1
+   real right_mod_depth 1
+   real left_final_intensity 70
+   real right_final_intensity 70
+
+comment final high-pass and low-pass settings
+   real left_final_HP 1000
+   real right_final_HP 1000
+   real left_final_LP 8000
+   real right_final_LP 8000
+
+   boolean left_buffer_edges_with_noise no
+   boolean right_buffer_edges_with_noise no
+
+comment  
+   boolean view_after_creation yes
+
+   real sampling_frequency 44100
+
+   boolean draw 1
+
+endform
+
+
+# constant variables
+left_final_skirt_low = left_final_HP/3
+left_final_skirt_high = left_final_LP/3
+
+right_final_skirt_low = right_final_HP/3
+right_final_skirt_high = right_final_LP/3
+
+
+log_start = 100
+log2_freq_start = log2(log_start)
+log2_freq_offset = log2_freq_start-1
+
+
+call makeRipple left_duration left_ripples_per_octave left_phase left_mod_depth left_final_intensity left_final_HP left_final_LP left_final_skirt_low left_final_skirt_high left_buffer_edges_with_noise
+firstRipple$ = "'finalName$'"
+call makeRipple right_duration right_ripples_per_octave right_phase right_mod_depth right_final_intensity right_final_HP right_final_LP right_final_skirt_low right_final_skirt_high right_buffer_edges_with_noise
+secondRipple$ = "'finalName$'"
+
+if draw = 1
+    ## draw gradient-colored spectra from many selected sounds
+    # smoothing: cepstral smoothing to smooth out the spectra
+    # drawHzLow = left edge of frequency axis
+    # drawHzHigh = left edge of frequency axis
+    # drawDBLow = bottom edge of y axis
+    # drawDBHigh = bottom edge of y axis
+    
+    smoothing = 300 
+    drawHzLow = 0
+    drawHzHigh = 8000
+    drawDBLow = 5
+    drawDBHigh = 45
+    
+    Erase all
+    
+    select Sound 'firstRipple$'
+    plus Sound 'secondRipple$'
+    numberOfSelectedSounds = numberOfSelected ("Sound")
+
+    for thisSelectedSound to numberOfSelectedSounds
+    	sound'thisSelectedSound' = selected("Sound",thisSelectedSound)
+    endfor
+    
+    for thisSound from 1 to numberOfSelectedSounds
+    
+       redgradient = ('thisSound'-1)/('numberOfSelectedSounds'-1)
+    	r = redgradient
+    	g = 0.0
+    	b = 1-redgradient
+       Colour... {'r','g','b'}
+    
+       select sound'thisSound'
+    	name$ = selected$("Sound")
+    	To Spectrum... yes
+    	Cepstral smoothing... 'smoothing'
+    	Rename... 'name$'_smooth
+    	select Spectrum 'name$'
+    	Remove
+    	select Spectrum 'name$'_smooth
+    	Draw... drawHzLow drawHzHigh drawDBLow drawDBHigh yes
+    	select Spectrum 'name$'_smooth
+    	Remove
+
+    endfor
+endif
+
+if view_after_creation = 1
+select Sound 'firstRipple$'
+plus Sound 'secondRipple$'
+Concatenate recoverably
+View & Edit
+endif
+
+
+procedure makeRipple .duration .ripples_per_octave .phase .mod_depth .final_intensity .final_HP .final_LP .final_skirt_low .final_skirt_high .buffer_edges_with_noise
+
+# compatibility check
+if .mod_depth > 1
+	exit modulation depth must be less than or equal to 1. 
+endif
+if .mod_depth < 0
+	exit Modulation depth must be greater than zero
+endif
+
+do ("Create Sound from formula...", "Noise", 1, 0, .duration, sampling_frequency, "randomGauss(0,0.1)")
+do ("Filter (formula)...", "if x>10 then self*((1-.mod_depth/2)+(sin(((log2(x)-log2_freq_offset)*2*pi*.ripples_per_octave)+(.phase/360*2*pi)))*(0.5*.mod_depth)) else self fi; rectangular band filter")
+Rename... Temp
+# first eliminate energy below the low frequency cutoff
+do ("Filter (stop Hann band)...", 0, .final_HP, .final_skirt_low)
+# now only allow energy up to the high-frequency boundary
+do ("Filter (pass Hann band)...", 0, .final_LP, .final_skirt_high)
+if .phase < 100
+.phase$ = "0'.phase:0'"
+else 
+.phase$ = "'.phase:0'"
+endif
+if .phase < 10
+.phase$ = "00'.phase:0'"
+endif
+Rename... Ripple_'.ripples_per_octave:2'_'.phase$'_'.mod_depth:3'
+finalName$ = selected$("Sound")
+
+if .buffer_edges_with_noise = 1
+	# make lower-freq noise
+	select Sound Noise
+	# only allow energy up to the low-frequency cutoff
+	do ("Filter (pass Hann band)...", 0, .final_HP, .final_skirt_low)
+	Rename... Buffer_low
+	select Sound Noise
+	# allow only energy above the high-frequency cutoff
+	do ("Filter (stop Hann band)...", 0, .final_LP, .final_skirt_high)
+	Rename... Buffer_high
+
+	select Sound 'finalName$'
+	Formula... self [col] + Sound_Buffer_low [col] + Sound_Buffer_high [col]
+	
+	select Sound Buffer_low
+	plus Sound Buffer_high
+	Remove
+endif
+
+select Sound 'finalName$'
+Scale intensity... '.final_intensity'
+select Sound Noise
+plus Sound Temp
+plus Sound Temp_band
+Remove
+
+endproc
