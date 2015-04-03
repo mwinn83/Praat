@@ -1,0 +1,64 @@
+####################################
+# Calculate QB passer rating
+#
+#
+# Matthew B Winn
+# January 2013
+####################################
+
+form Enter quarterback statistics
+
+real completions 7
+
+real attempts 10
+
+integer yards 100
+
+real touchdowns 2
+
+real interceptions 1
+
+endform
+
+a = ((completions/attempts)-0.3)*5
+b = ((yards/attempts)-3)*0.25
+c = (touchdowns/attempts)*20
+d = 2.375 - ((interceptions/attempts)*25)
+
+if a > 2.375
+	a = 2.375
+endif
+
+if b > 2.375
+	b = 2.375
+endif
+
+if c > 2.375
+	c = 2.375
+endif
+
+if d > 2.375
+	d = 2.375
+endif
+
+if a < 0
+	a = 0
+endif
+
+if b < 0
+	b = 0
+endif
+
+if c < 0
+	c = 0
+endif
+
+if d < 0
+	d = 0
+endif
+
+
+
+rating = ((a+b+c+d)/6)*100
+
+print QB rating is 'rating:1''newline$'
